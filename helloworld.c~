@@ -1,0 +1,61 @@
+#include <gtk/gtk.h>
+
+GtkWidget *text;
+
+static gboolean destroy (GtkWidget *window, gpointer data){
+	gtk_main_quit ();
+	return FALSE;
+}
+
+static void print(GtkWidget *base, gpointer data){
+	char s[50];
+	sprintf(s,"%s", (char *) data);
+	gtk_label_set_text(text,s);
+}
+
+
+int main (int argc, char *argv[]){
+	GtkWidget *screen,*botao1,*botao2,*caixa,*tabela,*carga;
+
+	gtk_init (&argc, &argv);
+
+	screen = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title (GTK_WINDOW (screen), "Painel de Cargas");
+	gtk_widget_set_size_request(screen,800,600);
+	
+	g_signal_connect (G_OBJECT (screen), "destroy",G_CALLBACK (destroy), NULL);
+	
+	tabela= gtk_vbox_new (FALSE, 30);
+	gtk_container_add(GTK_CONTAINER(screen),tabela);
+	
+	text = gtk_label_new ("Cargas");
+	gtk_label_set_selectable (GTK_LABEL (text), TRUE);
+	gtk_box_pack_start (GTK_BOX(tabela), text, FALSE, TRUE, 0);
+	
+	carga= gtk_hscale_new_with_range(-50,50,0.5);
+	gtk_box_pack_start(GTK_BOX(tabela),carga,TRUE,TRUE,50);
+	
+	caixa= gtk_hbox_new (FALSE, 50);
+	gtk_box_pack_start (GTK_BOX(tabela), caixa, TRUE, TRUE, 0);
+	
+	
+	botao1 = gtk_button_new_with_label("Botao1");
+	gtk_button_set_relief (GTK_BUTTON (botao1), GTK_RELIEF_NORMAL);
+	gtk_box_pack_start (GTK_BOX(caixa), botao1, TRUE, TRUE, 0);
+	
+	g_signal_connect(G_OBJECT (botao1), "clicked", G_CALLBACK (print),(gpointer) "hello1");
+	
+	
+	botao2 = gtk_button_new_with_label("Botao2");
+	gtk_button_set_relief (GTK_BUTTON (botao2), GTK_RELIEF_NORMAL);
+	gtk_box_pack_start (GTK_BOX(caixa), botao2, TRUE, TRUE, 0);
+	
+	g_signal_connect(G_OBJECT (botao2), "clicked", G_CALLBACK (print), (gpointer) "hello2");
+	
+	
+	gtk_widget_show_all(screen);
+	gtk_main ();
+	return 0;
+}
+
+

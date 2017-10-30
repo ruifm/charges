@@ -1,0 +1,252 @@
+#include <stdio.h>
+#include <gtk/gtk.h>
+#include <math.h>
+#include <cairo.h>
+
+#define TOTAL 4
+#define COUL 1e9
+static double dt = .0001;
+typedef struct {
+	double x;
+	double y;
+} vector;
+
+vector add(vector p1,vector p2){
+	vector p;
+	p.x=p1.x+p2.x;
+	p.y=p1.y+p2.y;
+	return p;
+}
+vector sub(vector p1,vector p2){
+	vector p;
+	p.x=p1.x-p2.x;
+	p.y=p1.y-p2.y;
+	return p;
+}
+vector factor(double k,vector p){
+	vector r;
+	r.x=k*p.x;
+	r.y=k*p.y;
+	return r;
+}
+double dot(vector p1,vector p2){
+	return p1.x*p2.x+p1.y+p2.y;
+}
+double det(vector p1,vector p2){
+	return p1.x*p2.y-p1.y+p2.x;
+}
+double norma(vector p){
+	return dot(p,p);
+}
+vector unit(vector p){
+	return factor(1/sqrt(norma(p)),p);
+}
+vector proj(vector r, vector v){
+	return factor(dot(r,v)/norma(v),v);
+}
+
+typedef struct {
+	vector pos;
+	vector vel;
+	double qt;
+	double mass;
+	vector a;
+	vector force;
+	int radius;
+	char name[20];
+} charge;
+
+vector coulomb(charge c1,charge c2){
+	if(sqrt(norma(sub(c1.pos,c2.pos)))> (c1.radius+c2.radius))
+		return factor(COUL/norma(sub(c1.pos,c2.pos)),unit(sub(c2.pos,c1.pos)));
+	else {
+		return factor(0,c1.pos);
+	}
+}
+charge q[3];
+vector eletric(charge q0){
+	int i;
+	vector e=factor(0,q0.pos);
+	for(i=1;i<TOTAL;i++){
+		e=add(e,factor(q[i].qt,coulomb(q0,q[i])));
+	}
+	return e;
+}
+
+
+
+
+
+static gboolean clicked(GtkWidget *widget, GdkEventButton *event,gpointer data){
+    if (event->button == 1) {
+        q[1].pos.x=event->x;
+        q[1].pos.y=event->y;
+        
+    }
+
+    if (event->button == 3) {
+        gtk_widget_queue_draw(widget);
+    }
+
+    return TRUE;
+}
+
+
+static gboolean destroy (GtkWidget *window, gpointer data){
+	gtk_main_quit ();
+	return FALSE;
+}
+int c=1,j=1,n=0;
+vector l[1000];
+gboolean on_expose_event (GtkWidget *widget,GdkEventExpose *event,gpointer data){
+	int i,b;
+  cairo_t *cr ;
+  gint width, height;
+
+  gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
+  cr = gdk_cairo_create(widget->window);
+  // Cargas fixas
+  if(c){
+  	q[3].pos.x=width/5.;
+  	q[3].pos.y=height/4.;
+  	q[1].pos.x=width*2./5.;
+  	q[1].pos.y=height*2./4.;
+  	q[2].pos.x=width*0.5/5.;
+  	q[2].pos.y=height*3./4.;
+  }
+  cairo_arc (cr, q[3].pos.x,q[3].pos.y, q[3].radius, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 0, 1);
+  cairo_fill (cr);
+  
+  cairo_arc (cr, q[1].pos.x,q[1].pos.y, q[1].radius, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 1, 0);
+  cairo_fill (cr);
+  
+  cairo_arc (cr, q[2].pos.x,q[2].pos.y,q[2].radius, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 1, 0, 0);
+  cairo_fill (cr);
+  
+  // Carga livre
+  
+  cairo_set_source_rgb(cr, 0, 0, 0);
+	cairo_set_line_width (cr, 0.5);
+	
+	
+  double x0=(3./10.)*width;
+  double y0=height/2.;
+  if(c){
+  q[0].pos.x=x0;
+  q[0].pos.y=y0;
+  q[0].vel.x = -1000;
+  q[0].vel.y = 1000;
+  l[0]=q[0].pos;
+  }
+  cairo_arc (cr, q[0].pos.x, q[0].pos.y, q[0].radius, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 0, 0);
+  cairo_fill (cr);
+// Bordas
+  if ((q[0].pos.x < q[0].radius) || ((q[0].pos.x + q[0].radius) > width*(3./5.)))
+    q[0].vel.x = - q[0].vel.x;
+  if ((q[0].pos.y < q[0].radius + (1./9.)*height) || ((q[0].pos.y + q[0].radius) > height))
+    q[0].vel.y = -q[0].vel.y;
+  
+  // Mov
+  q[0].force=factor(q[0].qt,eletric(q[0]));
+	
+	q[0].a=factor(1/q[0].mass,q[0].force);
+	
+	q[0].vel = add(q[0].vel,factor(dt,q[0].a));
+	q[0].pos = add(q[0].pos,factor(dt,q[0].vel));
+	j++;
+	if(j==((n+1)*900)){
+		n++;
+	}
+	l[j-n*900]=q[0].pos;
+	if(j>100)
+		b=100;
+	else
+		b=j;
+	
+	for(i=j-b;i<j;i++){
+		cairo_move_to(cr, l[i-n*900].x, l[i-n*900].y);
+		cairo_line_to(cr, l[i+1-n*900].x, l[i+1-n*900].y);
+  }
+  
+  cairo_stroke(cr);
+  cairo_destroy(cr);
+  
+	c=0;
+	
+  return FALSE;
+}
+
+static gboolean
+time_handler (GtkWidget *widget)
+{
+  if (widget->window == NULL) 
+    return FALSE;
+
+  gtk_widget_queue_draw(widget);
+
+  return TRUE;
+}
+
+int main (int argc, char *argv[]){
+	int i;
+// Widgets a criar
+	GtkWidget *screen,*tabela,*controlo[3],*legenda[3],*titulo1,*titulo2,*def[3],*campo;
+// blablabla do Gtk+ (janela principal)
+	gtk_init (&argc, &argv);
+	screen = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title (GTK_WINDOW (screen), "Painel de Cargas e Controlo");
+	gtk_widget_set_size_request(screen,800,600);
+	gtk_widget_set_app_paintable (screen, TRUE);
+// Perimite destruir janela no windows manager
+	g_signal_connect (G_OBJECT (screen), "destroy",G_CALLBACK (destroy), NULL);
+// Tabela
+	tabela= gtk_table_new(9,5,TRUE);
+	gtk_container_add(GTK_CONTAINER(screen),tabela);
+//Elementos
+	campo=gtk_hbox_new(TRUE,0);
+	//gtk_table_attach_defaults(GTK_TABLE(tabela),campo,0,3,1,9);
+	for(i=0;i<TOTAL;i++){
+		def[i]=gtk_adjustment_new(0.,-50.,50.,0.5,0.,0.);
+		controlo[i]=gtk_hscale_new(GTK_ADJUSTMENT(def[i]));
+		gtk_table_attach_defaults(GTK_TABLE(tabela),controlo[i],3,5,2+i*2,3+i*2);
+		gtk_scale_set_value_pos(GTK_SCALE(controlo[i]), GTK_POS_LEFT);
+		q[i].qt =(double) gtk_range_get_value(GTK_RANGE(controlo[i]));
+		char s[30];
+		//printf("Carga #%i : %.1lf\n",i,q[i].qt);
+		sprintf(s,"Carga #%i",i+1);
+		legenda[i]=gtk_label_new(s);
+		gtk_table_attach_defaults(GTK_TABLE(tabela),legenda[i],3,5,1+i*2,2+i*2);
+		q[i].radius=10;
+		q[i].mass=1.;
+		q[i].qt=pow((-1.),i+1);
+		//q[i].image=gtk_image_new_from_file("carga.gif");
+		//gtk_container_add(GTK_CONTAINER(campo),q[i].image);
+	}
+	titulo1=gtk_label_new("Simulacao Visual");
+	gtk_table_attach_defaults(GTK_TABLE(tabela),titulo1,0,3,0,1);
+	titulo2=gtk_label_new("Controlos");
+	gtk_table_attach_defaults(GTK_TABLE(tabela),titulo2,3,5,0,1);
+	
+	
+	gtk_widget_add_events (screen, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(screen, "button-press-event", G_CALLBACK(clicked), NULL);
+	g_signal_connect (screen, "expose-event", G_CALLBACK(on_expose_event), NULL);
+	g_timeout_add (10, (GSourceFunc) time_handler, (gpointer) screen);  
+	
+// blablabla final do Gtk+
+	gtk_widget_show_all(screen);
+	gtk_main ();
+	return 0;
+}

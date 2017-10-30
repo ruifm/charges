@@ -1,0 +1,331 @@
+#include <stdio.h>
+#include <gtk/gtk.h>
+#include <math.h>
+
+
+//CONSTANTES
+
+static double dt = .001;
+
+
+
+//ESTRUTURAS
+
+typedef struct {
+	double x;
+	double y;
+} pair;
+
+typedef struct {
+	pair pos;
+	pair vel;
+	double speed;
+	double qt;
+	double mass;
+	double acceleration;
+	double force;
+	char name[20];
+	GtkWidget *image;
+} charge;
+
+charge obj[3];
+
+GtkWidget *text;
+
+static gboolean destroy (GtkWidget *window, gpointer data)
+{
+
+  gtk_main_quit ();
+  return FALSE;
+
+}
+
+
+gboolean on_expose_event (GtkWidget *widget,GdkEventExpose *event,gpointer data)
+{
+  
+  cairo_t *cr ;
+  gint width, height;
+  
+  gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
+  cr = gdk_cairo_create(widget->window);
+  
+  // Cargas fixas
+  obj[0].pos.x=width/5.;
+  obj[0].pos.y=height/4.;
+  obj[1].pos.x=width*2./5.;
+  obj[1].pos.y=height*2./4.;
+  obj[2].pos.x=width*0.5/5.;
+  obj[2].pos.y=height*3./4.;
+  
+  cairo_arc (cr, obj[0].pos.x,obj[0].pos.y, 20, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 1, 1);
+  cairo_fill (cr);
+  
+  cairo_arc (cr, obj[1].pos.x,obj[1].pos.y, 20, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 1, 1);
+  cairo_fill (cr);
+  
+  cairo_arc (cr, obj[2].pos.x,obj[2].pos.y, 20, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 1, 1);
+  cairo_fill (cr);
+  
+  
+  // Carga livre
+  const double x0=(3./10.)*width;
+  const double y0=height/2.;
+  static double   posx = (3./10.)*800, posy = 600/2.;
+  static double   sx = -150., sy = 150;
+  
+
+  cairo_arc (cr, posx, posy, 20, 0, 2. * M_PI);
+  cairo_stroke_preserve (cr);
+  
+  cairo_set_source_rgb (cr, 0, 1, 1);
+  cairo_fill (cr);
+
+  if ((posx < 30.) || ((posx + 30.) > width*(3./5.)))
+    sx = - sx;
+ 
+  sx-=(posx-x0)*dt;
+  posx += sx * dt;
+
+  if ((posy < 30. + (1./9.)*height) || ((posy + 30.) > height))
+    sy = - sy;
+  sy-=(posy-y0)*dt;
+  posy += sy * dt;
+	
+
+  //cairo_stroke(cr);
+  cairo_destroy(cr);
+
+  return FALSE;
+}
+
+static gboolean time_handler (GtkWidget *widget)
+{
+  if (widget->window == NULL) 
+    return FALSE;
+
+  gtk_widget_queue_draw(widget);
+
+  return TRUE;
+}
+
+
+void mudar_carga (GtkWidget *slider, int i)
+{
+  obj[i].qt = (double) gtk_range_get_value(GTK_RANGE(slider));
+}
+
+void mudar_massa (GtkWidget *slider, int i)
+{
+  obj[i].mass = (double) gtk_range_get_value(GTK_RANGE(slider));
+}
+
+void mudar_vel (GtkWidget *slider, int i)
+{
+  if(i=0)
+    obj[0].vel.x = (double) gtk_range_get_value(GTK_RANGE(slider));
+  else
+    obj[0].vel.y = (double) gtk_range_get_value(GTK_RANGE(slider));  
+
+}   
+    
+int main (int argc, char *argv[])
+{
+  int i,j,k;
+  char s[30];
+
+
+  // Widgets a criar
+  GtkWidget *screen, *tabela, *campo; 
+  GtkWidget *controlo_carga[3], *legenda_carga[3], *def_carga[3];
+  GtkWidget *controlo_massa[3], *legenda_massa[3], *def_massa[3];
+  GtkWidget *controlo_vinicial[1], *legenda_vinicial[1], *def_vinicial[1];
+  GtkWidget *pausa, *retomar;
+  GtkWidget *frame_massa, *frame_vinicial, *frame_carga, *frame_leg;
+  GtkWidget *preto, *vermelho, *verde, *azul, *radio;
+  
+  GSList *group;
+  gtk_init (&argc, &argv);
+ 
+  
+  //parametros da janela
+  screen = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_title (GTK_WINDOW (screen), "Painel de Cargas");
+  gtk_widget_set_size_request(screen,800,600);
+  gtk_widget_set_app_paintable (screen, TRUE);
+  gtk_window_set_position(GTK_WINDOW(screen), GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable(GTK_WINDOW(screen), FALSE);
+  
+  
+  // Permite destruir janela no windows manager
+  g_signal_connect (G_OBJECT (screen), "destroy",G_CALLBACK (destroy), NULL);
+  
+  
+  // Tabela
+  tabela = gtk_table_new(22,10,TRUE);
+  gtk_container_add(GTK_CONTAINER(screen),tabela);
+  gtk_table_set_row_spacings(GTK_TABLE(tabela), 2);
+  gtk_table_set_col_spacings(GTK_TABLE(tabela), 2);
+
+    
+  //CAIXA
+  campo = gtk_hbox_new (TRUE, 0);
+
+  //BOTOES
+  pausa = gtk_button_new_with_label("Pausa");
+  retomar = gtk_button_new_with_label("Retomar");
+
+  //FRAMES
+  frame_massa = gtk_frame_new("Massa/Raio");
+  gtk_frame_set_shadow_type(GTK_FRAME(frame_massa), GTK_SHADOW_IN);
+  frame_carga = gtk_frame_new("Cargas");
+  gtk_frame_set_shadow_type(GTK_FRAME(frame_carga), GTK_SHADOW_IN);
+  frame_vinicial = gtk_frame_new("Velocidade Inicial");
+  gtk_frame_set_shadow_type(GTK_FRAME(frame_vinicial), GTK_SHADOW_IN);
+
+  //IMAGENS
+  preto = gtk_image_new_from_file("preto.png");
+  vermelho = gtk_image_new_from_file("vermelho.png");
+  verde = gtk_image_new_from_file("verde.png");
+  azul = gtk_image_new_from_file("azul.png");
+
+        
+
+  //attach
+  gtk_table_attach_defaults(GTK_TABLE(tabela), campo, 0, 6, 1, 9);
+ 
+  gtk_table_attach_defaults(GTK_TABLE(tabela), pausa, 2, 3, 19, 20);
+  gtk_table_attach_defaults(GTK_TABLE(tabela), retomar, 3, 4, 19, 20);
+  
+  gtk_table_attach_defaults(GTK_TABLE(tabela), frame_carga, 6, 10, 1, 6);
+  gtk_table_attach_defaults(GTK_TABLE(tabela), frame_massa, 6, 10, 7, 12);
+  gtk_table_attach_defaults(GTK_TABLE(tabela), frame_vinicial, 6, 10, 13, 17);
+  
+  gtk_table_attach_defaults(GTK_TABLE(tabela), preto, 7, 8, 17, 18);
+  radio=gtk_radio_button_new_with_label (NULL, "Carga Q1 (l)"); 
+  gtk_table_attach_defaults(GTK_TABLE(tabela),radio,6,8,17,18);
+  
+  group = gtk_radio_button_get_group (GTK_RADIO_BUTTON (radio));
+  
+  gtk_table_attach_defaults(GTK_TABLE(tabela), vermelho, 7, 8, 18, 19);
+  radio=gtk_radio_button_new_with_label (group, "Carga Q2");  
+  gtk_table_attach_defaults(GTK_TABLE(tabela),radio,6,8,18,19);
+
+  gtk_table_attach_defaults(GTK_TABLE(tabela), verde, 7, 8, 19, 20);
+  radio=gtk_radio_button_new_with_label_from_widget (GTK_RADIO_BUTTON (radio),"Carga Q3");  
+  gtk_table_attach_defaults(GTK_TABLE(tabela),radio,6,8,19,20);
+
+  gtk_table_attach_defaults(GTK_TABLE(tabela), azul, 7, 8, 20, 21);
+  radio=gtk_radio_button_new_with_label_from_widget (GTK_RADIO_BUTTON (radio),"Carga Q4");  
+  gtk_table_attach_defaults(GTK_TABLE(tabela),radio,6,8,20,21);
+  
+
+  //SLIDERS CARGA
+
+  for(i=0,k=0; i<2;i++)
+    {
+      for(j=0; j<2; j++)
+	{
+	  def_carga[k] = gtk_adjustment_new(0, -50, 50, 0.5, 0, 0);
+	  controlo_carga[k] = gtk_hscale_new(GTK_ADJUSTMENT(def_carga[k]));
+
+	  gtk_table_attach_defaults(GTK_TABLE(tabela), controlo_carga[k], 6+2*j, 8+2*j, 3+2*i,4+2*i); 
+	  gtk_scale_set_value_pos(GTK_SCALE(controlo_carga[k]), GTK_POS_LEFT);
+
+	  obj[k].qt = (double) gtk_range_get_value(GTK_RANGE(controlo_carga[k]));
+	  sprintf(s,"Carga #%i",k+1);
+      
+	  legenda_carga[k]=gtk_label_new(s);
+      
+	  gtk_table_attach_defaults(GTK_TABLE(tabela),legenda_carga[k],6+2*j,8+2*j,2+i*2,3+i*2);
+	  k++;
+	}
+    }
+  
+  //SLIDERS MASSA
+
+  for(i=0,k=0; i<2;i++)
+    {
+      for(j=0; j<2; j++)
+	{
+	  def_massa[k] = gtk_adjustment_new(1, 0, 100, 0.5, 0, 0);
+	  controlo_massa[k] = gtk_hscale_new(GTK_ADJUSTMENT(def_massa[k]));
+
+	  gtk_table_attach_defaults(GTK_TABLE(tabela), controlo_massa[k], 6+2*j, 8+2*j, 9+2*i,10+2*i); 
+	  gtk_scale_set_value_pos(GTK_SCALE(controlo_massa[k]), GTK_POS_LEFT);
+
+	  obj[k].mass = (double) gtk_range_get_value(GTK_RANGE(controlo_massa[k]));
+
+	  sprintf(s,"Massa #%i",k+1);
+      
+	  legenda_massa[k]=gtk_label_new(s);
+      
+	  gtk_table_attach_defaults(GTK_TABLE(tabela),legenda_massa[k],6+2*j,8+2*j,8+i*2,9+i*2);
+	  k++;
+	}
+    }
+
+  //SLIDERS V_INICIAL
+
+  def_vinicial[0] = gtk_adjustment_new(0, 0, 100, 0.5, 0, 0);
+  def_vinicial[1] = gtk_adjustment_new(0, 0, 100, 0.5, 0, 0);
+  controlo_vinicial[0] = gtk_hscale_new(GTK_ADJUSTMENT(def_vinicial[0]));
+  controlo_vinicial[1] = gtk_hscale_new(GTK_ADJUSTMENT(def_vinicial[1]));
+  
+  gtk_table_attach_defaults(GTK_TABLE(tabela), controlo_vinicial[0], 6, 8, 15,16); 
+  gtk_scale_set_value_pos(GTK_SCALE(controlo_vinicial[0]), GTK_POS_LEFT);
+
+  gtk_table_attach_defaults(GTK_TABLE(tabela), controlo_vinicial[1], 8, 10, 15,16); 
+  gtk_scale_set_value_pos(GTK_SCALE(controlo_vinicial[1]), GTK_POS_LEFT);
+
+      
+  obj[3].vel.x = (double) gtk_range_get_value(GTK_RANGE(controlo_vinicial[0]));
+  obj[3].vel.y = (double) gtk_range_get_value(GTK_RANGE(controlo_vinicial[1]));
+  
+  legenda_vinicial[0] = gtk_label_new("Velocidade X");
+  legenda_vinicial[1] = gtk_label_new("Velocidade Y");
+  
+  gtk_table_attach_defaults(GTK_TABLE(tabela),legenda_vinicial[0],6,8,14,15);
+  gtk_table_attach_defaults(GTK_TABLE(tabela),legenda_vinicial[1],8,10,14,15);
+ 
+  
+
+  gtk_widget_add_events (screen, GDK_BUTTON_PRESS_MASK);
+ 
+  g_signal_connect (screen, "expose-event", G_CALLBACK(on_expose_event), NULL);
+  
+  //FUNCIONAMENTO DOS SLIDERS DE CARGA
+  g_signal_connect (G_OBJECT(controlo_carga[0]), "value-changed", G_CALLBACK(mudar_carga), 0);
+  g_signal_connect (G_OBJECT(controlo_carga[1]), "value-changed", G_CALLBACK(mudar_carga), 1);
+  g_signal_connect (G_OBJECT(controlo_carga[2]), "value-changed", G_CALLBACK(mudar_carga), 2);
+  g_signal_connect (G_OBJECT(controlo_carga[3]), "value-changed", G_CALLBACK(mudar_carga), 3);
+
+  //FUNCIONAMENTO DOS SLIDERS DE MASSA
+  g_signal_connect (G_OBJECT(controlo_massa[0]), "value-changed", G_CALLBACK(mudar_massa), 0);
+  g_signal_connect (G_OBJECT(controlo_massa[1]), "value-changed", G_CALLBACK(mudar_massa), 1);
+  g_signal_connect (G_OBJECT(controlo_massa[2]), "value-changed", G_CALLBACK(mudar_massa), 2);
+  g_signal_connect (G_OBJECT(controlo_massa[3]), "value-changed", G_CALLBACK(mudar_massa), 3);
+
+  //FUNCIONAMENTO DOS SLIDERS DE VELOCIDADE
+ g_signal_connect (G_OBJECT(controlo_vinicial[0]), "value-changed", G_CALLBACK(mudar_vel), 0);
+ g_signal_connect (G_OBJECT(controlo_vinicial[1]), "value-changed", G_CALLBACK(mudar_vel), 1);
+
+  g_timeout_add (10, (GSourceFunc) time_handler, (gpointer) screen);   
+  gtk_widget_show_all(screen);
+  gtk_main ();
+
+  printf("\nVELOCIDADE: %lf\n", obj[0].vel.x);
+  printf("VELOCIDADE: %lf", obj[0].vel.y);
+  
+
+  return 0;
+}
